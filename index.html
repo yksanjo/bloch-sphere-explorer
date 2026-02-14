@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bloch Sphere Explorer - Interactive 3D Visualization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Sans:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0a0a0f;
+            --bg-panel: #12121a;
+            --border: #1e1e2e;
+            --primary: #00d4ff;
+            --secondary: #ff00ff;
+            --accent: #00ff88;
+            --text: #e0e0e0;
+            --text-dim: #808090;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(ellipse at 30% 30%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 70%, rgba(255, 0, 255, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 25px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.4rem, 4vw, 2rem);
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 25px;
+        }
+
+        @media (max-width: 999px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Canvas Container */
+        .canvas-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            opacity: 0.6;
+        }
+
+        #blochCanvas {
+            width: 100%;
+            height: 500px;
+            display: block;
+            cursor: grab;
+        }
+
+        #blochCanvas:active {
+            cursor: grabbing;
+        }
+
+        .canvas-hint {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 15px;
+            border-radius: 15px;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            opacity: 0.6;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        /* State Controls */
+        .slider-group {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+
+        .slider-name {
+            color: var(--text);
+        }
+
+        .slider-value {
+            font-family: 'Fira Code', monospace;
+            color: var(--primary);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--border);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        /* Preset Buttons */
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .preset-btn {
+            padding: 10px 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .preset-btn:hover {
+            border-color: var(--primary);
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .preset-btn.active {
+            border-color: var(--secondary);
+            background: rgba(255, 0, 255, 0.15);
+        }
+
+        /* State Display */
+        .state-display {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+
+        .state-title {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .state-equation {
+            font-family: 'Fira Code', monospace;
+            font-size: 1rem;
+            color: var(--accent);
+        }
+
+        .amplitudes {
+            margin-top: 12px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+        }
+
+        .amp-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .amp-label {
+            color: var(--text-dim);
+        }
+
+        .amp-value {
+            color: var(--primary);
+        }
+
+        /* Great Circle Toggle */
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .toggle-label {
+            font-size: 0.85rem;
+        }
+
+        .toggle {
+            width: 50px;
+            height: 26px;
+            background: var(--border);
+            border-radius: 13px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .toggle.active {
+            background: var(--primary);
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: var(--text);
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        .toggle.active::after {
+            transform: translateX(24px);
+        }
+
+        /* Info Panel */
+        .info-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: var(--accent);
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            border-top: 1px solid var(--border);
+            margin-top: 25px;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BLOCH SPHERE EXPLORER</h1>
+            <p class="subtitle">Interactive 3D Quantum State Visualization</p>
+        </header>
+
+        <div class="main-layout">
+            <div class="canvas-panel">
+                <canvas id="blochCanvas"></canvas>
+                <div class="canvas-hint">🖱️ Drag to rotate • Scroll to zoom</div>
+            </div>
+
+            <div class="control-panel">
+                <!-- State Controls -->
+                <div class="panel">
+                    <h3 class="panel-title">State Parameters</h3>
+                    
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-name">θ (Theta) - Polar Angle</span>
+                            <span class="slider-value" id="thetaVal">0°</span>
+                        </div>
+                        <input type="range" id="thetaSlider" min="0" max="180" value="0">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-name">φ (Phi) - Azimuthal Angle</span>
+                            <span class="slider-value" id="phiVal">0°</span>
+                        </div>
+                        <input type="range" id="phiSlider" min="0" max="360" value="0">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-name">Animation Speed</span>
+                            <span class="slider-value" id="speedVal">1x</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="1" max="10" value="3">
+                    </div>
+                </div>
+
+                <!-- Preset States -->
+                <div class="panel">
+                    <h3 class="panel-title">Preset States</h3>
+                    <div class="preset-grid">
+                        <button class="preset-btn" data-state="0">|0⟩</button>
+                        <button class="preset-btn" data-state="1">|1⟩</button>
+                        <button class="preset-btn" data-state="plus">|+⟩</button>
+                        <button class="preset-btn" data-state="minus">|-⟩</button>
+                        <button class="preset-btn" data-state="iplus">|+i⟩</button>
+                        <button class="preset-btn" data-state="iminus">|-i⟩</button>
+                    </div>
+                </div>
+
+                <!-- Visualization Options -->
+                <div class="panel">
+                    <h3 class="panel-title">Visualization</h3>
+                    
+                    <div class="toggle-group">
+                        <span class="toggle-label">Show Great Circles</span>
+                        <div class="toggle active" id="toggleCircles"></div>
+                    </div>
+                    
+                    <div class="toggle-group">
+                        <span class="toggle-label">Show Axes</span>
+                        <div class="toggle active" id="toggleAxes"></div>
+                    </div>
+                    
+                    <div class="toggle-group">
+                        <span class="toggle-label">Animate Path</span>
+                        <div class="toggle" id="toggleAnimate"></div>
+                    </div>
+                </div>
+
+                <!-- State Info -->
+                <div class="panel">
+                    <h3 class="panel-title">State Information</h3>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Quantum State</div>
+                        <div class="info-value" id="stateName">|0⟩</div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Bloch Coordinates</div>
+                        <div class="info-value" id="blochCoords">(1.00, 0.00, 0.00)</div>
+                    </div>
+
+                    <div class="state-display">
+                        <div class="state-title">WAVEFUNCTION</div>
+                        <div class="state-equation" id="wavefunction">|ψ⟩ = |0⟩</div>
+                        <div class="amplitudes">
+                            <div class="amp-row">
+                                <span class="amp-label">α (|0⟩):</span>
+                                <span class="amp-value" id="ampAlpha">1.000 + 0.000i</span>
+                            </div>
+                            <div class="amp-row">
+                                <span class="amp-label">β (|1⟩):</span>
+                                <span class="amp-value" id="ampBeta">0.000 + 0.000i</span>
+                            </div>
+                            <div class="amp-row">
+                                <span class="amp-label">|α|² + |β|²:</span>
+                                <span class="amp-value" id="normCheck">1.000</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Bloch Sphere Explorer — Part of the Quantum Computing Educational Series</p>
+            <p><a href="https://github.com/yksanjo/bloch-sphere-explorer">View on GitHub</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('blochCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // State variables
+        let theta = 0;
+        let phi = 0;
+        let rotationX = 30;
+        let rotationY = 0;
+        let zoom = 1;
+        let isDragging = false;
+        let lastX, lastY;
+        let showCircles = true;
+        let showAxes = true;
+        let animatePath = false;
+        let animationPath = [];
+        let animationIndex = 0;
+        
+        // Resize canvas
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 3D projection
+        function project(x, y, z, centerX, centerY, radius) {
+            // Rotate around Y axis
+            let x1 = x * Math.cos(rotationY * Math.PI / 180) - z * Math.sin(rotationY * Math.PI / 180);
+            let z1 = x * Math.sin(rotationY * Math.PI / 180) + z * Math.cos(rotationY * Math.PI / 180);
+            
+            // Rotate around X axis
+            let y1 = y * Math.cos(rotationX * Math.PI / 180) - z1 * Math.sin(rotationX * Math.PI / 180);
+            let z2 = y * Math.sin(rotationX * Math.PI / 180) + z1 * Math.cos(rotationX * Math.PI / 180);
+            
+            // Perspective projection
+            const scale = radius * zoom / (radius - z2);
+            
+            return {
+                x: centerX + x1 * scale,
+                y: centerY + y1 * scale,
+                z: z2
+            };
+        }
+
+        // Draw sphere
+        function drawSphere(cx, cy, radius) {
+            // Draw main circle
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * zoom, 0, Math.PI * 2);
+            ctx.strokeStyle = '#1e1e2e';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw great circles
+            if (showCircles) {
+                ctx.globalAlpha = 0.3;
+                
+                // XY plane (equator)
+                ctx.beginPath();
+                for (let i = 0; i <= 360; i += 5) {
+                    const rad = i * Math.PI / 180;
+                    const p = project(radius * Math.cos(rad), radius * Math.sin(rad), 0, cx, cy, radius);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                }
+                ctx.strokeStyle = '#00d4ff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // XZ plane
+                ctx.beginPath();
+                for (let i = 0; i <= 360; i += 5) {
+                    const rad = i * Math.PI / 180;
+                    const p = project(radius * Math.cos(rad), 0, radius * Math.sin(rad), cx, cy, radius);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                }
+                ctx.strokeStyle = '#ff00ff';
+                ctx.stroke();
+                
+                // YZ plane
+                ctx.beginPath();
+                for (let i = 0; i <= 360; i += 5) {
+                    const rad = i * Math.PI / 180;
+                    const p = project(0, radius * Math.cos(rad), radius * Math.sin(rad), cx, cy, radius);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                }
+                ctx.strokeStyle = '#00ff88';
+                ctx.stroke();
+                
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        // Draw axes
+        function drawAxes(cx, cy, radius) {
+            if (!showAxes) return;
+            
+            const r = radius * zoom;
+            
+            ctx.globalAlpha = 0.4;
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            
+            // X axis
+            const xStart = project(-r, 0, 0, cx, cy, radius);
+            const xEnd = project(r, 0, 0, cx, cy, radius);
+            ctx.beginPath();
+            ctx.moveTo(xStart.x, xStart.y);
+            ctx.lineTo(xEnd.x, xEnd.y);
+            ctx.strokeStyle = '#ff6666';
+            ctx.stroke();
+            
+            // Y axis
+            const yStart = project(0, -r, 0, cx, cy, radius);
+            const yEnd = project(0, r, 0, cx, cy, radius);
+            ctx.beginPath();
+            ctx.moveTo(yStart.x, yStart.y);
+            ctx.lineTo(yEnd.x, yEnd.y);
+            ctx.strokeStyle = '#66ff66';
+            ctx.stroke();
+            
+            // Z axis
+            const zStart = project(0, 0, -r, cx, cy, radius);
+            const zEnd = project(0, 0, r, cx, cy, radius);
+            ctx.beginPath();
+            ctx.moveTo(zStart.x, zStart.y);
+            ctx.lineTo(zEnd.x, zEnd.y);
+            ctx.strokeStyle = '#6666ff';
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+        }
+
+        // Draw state vector
+        function drawStateVector(cx, cy, radius) {
+            const thetaRad = theta * Math.PI / 180;
+            const phiRad = phi * Math.PI / 180;
+            
+            // Calculate 3D coordinates
+            const x = Math.sin(thetaRad) * Math.cos(phiRad);
+            const y = Math.sin(thetaRad) * Math.sin(phiRad);
+            const z = Math.cos(thetaRad);
+            
+            const r = radius * zoom;
+            
+            // Draw vector line
+            const origin = project(0, 0, 0, cx, cy, radius);
+            const tip = project(x * r, y * r, z * r, cx, cy, radius);
+            
+            // Glow effect
+            ctx.shadowColor = '#00ff88';
+            ctx.shadowBlur = 15;
+            
+            ctx.beginPath();
+            ctx.moveTo(origin.x, origin.y);
+            ctx.lineTo(tip.x, tip.y);
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // Draw tip
+            ctx.beginPath();
+            ctx.arc(tip.x, tip.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#00ff88';
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            
+            // Draw projection lines
+            ctx.globalAlpha = 0.3;
+            ctx.lineWidth = 1;
+            
+            // Project to XY plane
+            const xyProj = project(x * r, y * r, 0, cx, cy, radius);
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.lineTo(xyProj.x, xyProj.y);
+            ctx.strokeStyle = '#00d4ff';
+            ctx.stroke();
+            
+            // Project to XZ plane
+            const xzProj = project(x * r, 0, z * r, cx, cy, radius);
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.lineTo(xzProj.x, xzProj.y);
+            ctx.strokeStyle = '#ff00ff';
+            ctx.stroke();
+            
+            // Project to YZ plane
+            const yzProj = project(0, y * r, z * r, cx, cy, radius);
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.lineTo(yzProj.x, yzProj.y);
+            ctx.strokeStyle = '#00ff88';
+            ctx.stroke();
+            
+            ctx.globalAlpha = 1;
+        }
+
+        // Draw labels
+        function drawLabels(cx, cy, radius) {
+            const r = radius * zoom + 20;
+            
+            ctx.font = '14px "Fira Code", monospace';
+            ctx.fillStyle = '#00d4ff';
+            ctx.textAlign = 'center';
+            
+            // |0⟩ at north pole
+            const p0 = project(0, -r, 0, cx, cy, radius);
+            ctx.fillText('|0⟩', p0.x, p0.y);
+            
+            // |1⟩ at south pole
+            const p1 = project(0, r, 0, cx, cy, radius);
+            ctx.fillText('|1⟩', p1.x, p1.y);
+            
+            ctx.fillStyle = '#ff00ff';
+            // |+⟩ 
+            const pPlus = project(r, 0, 0, cx, cy, radius);
+            ctx.fillText('|+⟩', pPlus.x, pPlus.y);
+            
+            // |-⟩
+            const pMinus = project(-r, 0, 0, cx, cy, radius);
+            ctx.fillText('|-⟩', pMinus.x, pMinus.y);
+            
+            ctx.fillStyle = '#00ff88';
+            // |+i⟩
+            const piPlus = project(0, 0, r, cx, cy, radius);
+            ctx.fillText('|+i⟩', piPlus.x, piPlus.y);
+            
+            // |-i⟩
+            const piMinus = project(0, 0, -r, cx, cy, radius);
+            ctx.fillText('|-i⟩', piMinus.x, piMinus.y);
+        }
+
+        // Main draw function
+        function draw() {
+            const rect = canvas.getBoundingClientRect();
+            const cx = rect.width / 2;
+            const cy = rect.height / 2;
+            const radius = Math.min(cx, cy) - 60;
+            
+            // Clear canvas
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, rect.width, rect.height);
+            
+            // Draw elements
+            drawSphere(cx, cy, radius);
+            drawAxes(cx, cy, radius);
+            drawStateVector(cx, cy, radius);
+            drawLabels(cx, cy, radius);
+            
+            // Update UI
+            updateUI();
+            
+            requestAnimationFrame(draw);
+        }
+
+        // Update UI elements
+        function updateUI() {
+            const thetaRad = theta * Math.PI / 180;
+            const phiRad = phi * Math.PI / 180;
+            
+            // Calculate amplitudes
+            const alpha = { re: Math.cos(thetaRad/2), im: -Math.sin(thetaRad/2) * Math.sin(phiRad) };
+            const beta = { re: Math.sin(thetaRad/2) * Math.cos(phiRad), im: Math.sin(thetaRad/2) * Math.cos(phiRad) };
+            
+            // Calculate Bloch coordinates
+            const bx = Math.sin(thetaRad) * Math.cos(phiRad);
+            const by = Math.sin(thetaRad) * Math.sin(phiRad);
+            const bz = Math.cos(thetaRad);
+            
+            // Update displays
+            document.getElementById('thetaVal').textContent = theta + '°';
+            document.getElementById('phiVal').textContent = phi + '°';
+            document.getElementById('blochCoords').textContent = 
+                `(${bx.toFixed(2)}, ${by.toFixed(2)}, ${bz.toFixed(2)})`;
+            
+            // Update amplitudes
+            document.getElementById('ampAlpha').textContent = 
+                `${alpha.re.toFixed(3)} + ${alpha.im.toFixed(3)}i`;
+            document.getElementById('ampBeta').textContent = 
+                `${beta.re.toFixed(3)} + ${beta.im.toFixed(3)}i`;
+            
+            // Check normalization
+            const norm = alpha.re*alpha.re + alpha.im*alpha.im + beta.re*beta.re + beta.im*beta.im;
+            document.getElementById('normCheck').textContent = norm.toFixed(3);
+            
+            // Update wavefunction
+            updateWavefunction();
+        }
+
+        function updateWavefunction() {
+            const eq = document.getElementById('wavefunction');
+            const name = document.getElementById('stateName');
+            
+            // Determine state name
+            let stateStr = '|ψ⟩ = ';
+            
+            if (theta < 10) {
+                name.textContent = '|0⟩';
+                stateStr += '|0⟩';
+            } else if (theta > 170) {
+                name.textContent = '|1⟩';
+                stateStr += '|1⟩';
+            } else if (Math.abs(phi - 0) < 20 || Math.abs(phi - 360) < 20) {
+                if (Math.abs(theta - 90) < 10) {
+                    name.textContent = '|+⟩';
+                    stateStr += '(|0⟩ + |1⟩)/√2';
+                } else {
+                    name.textContent = 'Custom';
+                    stateStr += `cos(${theta/2}°)|0⟩ + sin(${theta/2}°)|1⟩`;
+                }
+            } else if (Math.abs(phi - 180) < 20) {
+                name.textContent = '|-⟩';
+                stateStr += '(|0⟩ - |1⟩)/√2';
+            } else if (Math.abs(phi - 90) < 20) {
+                name.textContent = '|+i⟩';
+                stateStr += '(|0⟩ + i|1⟩)/√2';
+            } else if (Math.abs(phi - 270) < 20) {
+                name.textContent = '|-i⟩';
+                stateStr += '(|0⟩ - i|1⟩)/√2';
+            } else {
+                name.textContent = 'Custom State';
+                stateStr += `cos(θ/2)|0⟩ + e^(iφ)sin(θ/2)|1⟩`;
+            }
+            
+            eq.textContent = stateStr;
+        }
+
+        // Event handlers
+        document.getElementById('thetaSlider').addEventListener('input', (e) => {
+            theta = parseInt(e.target.value);
+        });
+
+        document.getElementById('phiSlider').addEventListener('input', (e) => {
+            phi = parseInt(e.target.value);
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            document.getElementById('speedVal').textContent = e.target.value + 'x';
+        });
+
+        // Preset buttons
+        const presets = {
+            '0': { theta: 0, phi: 0 },
+            '1': { theta: 180, phi: 0 },
+            'plus': { theta: 90, phi: 0 },
+            'minus': { theta: 90, phi: 180 },
+            'iplus': { theta: 90, phi: 90 },
+            'iminus': { theta: 90, phi: 270 }
+        };
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const state = presets[btn.dataset.state];
+                if (state) {
+                    theta = state.theta;
+                    phi = state.phi;
+                    document.getElementById('thetaSlider').value = theta;
+                    document.getElementById('phiSlider').value = phi;
+                    
+                    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                }
+            });
+        });
+
+        // Toggle handlers
+        document.getElementById('toggleCircles').addEventListener('click', function() {
+            this.classList.toggle('active');
+            showCircles = this.classList.contains('active');
+        });
+
+        document.getElementById('toggleAxes').addEventListener('click', function() {
+            this.classList.toggle('active');
+            showAxes = this.classList.contains('active');
+        });
+
+        document.getElementById('toggleAnimate').addEventListener('click', function() {
+            this.classList.toggle('active');
+            animatePath = this.classList.contains('active');
+        });
+
+        // Mouse drag for rotation
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - lastX;
+            const deltaY = e.clientY - lastY;
+            
+            rotationY += deltaX * 0.5;
+            rotationX += deltaY * 0.5;
+            rotationX = Math.max(-90, Math.min(90, rotationX));
+            
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Touch support
+        canvas.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.touches[0].clientX - lastX;
+            const deltaY = e.touches[0].clientY - lastY;
+            
+            rotationY += deltaX * 0.5;
+            rotationX += deltaY * 0.5;
+            rotationX = Math.max(-90, Math.min(90, rotationX));
+            
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Scroll for zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            zoom *= e.deltaY > 0 ? 0.95 : 1.05;
+            zoom = Math.max(0.5, Math.min(2, zoom));
+        });
+
+        // Start drawing
+        draw();
+    </script>
+</body>
+</html>
